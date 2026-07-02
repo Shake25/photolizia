@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>图片粒子绘制演示</title>
+  <title>真实图片编织粒子</title>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
 
@@ -14,133 +14,166 @@
 
     body {
       margin: 0;
-      min-height: 100vh;
-      background: #111;
-      color: #fff;
+      background: #f4f4f4;
       font-family: Arial, Helvetica, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+      color: #222;
     }
 
-    .panel {
+    .toolbar {
       width: 100%;
-      padding: 16px 20px;
-      background: #1c1c1c;
+      min-height: 58px;
+      padding: 12px 18px;
+      background: #ffffff;
+      border-bottom: 1px solid #ddd;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: center;
-      gap: 16px;
-      border-bottom: 1px solid #333;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
-    .control {
+    .group {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
       font-size: 14px;
-      color: #ddd;
-    }
-
-    input[type="file"] {
-      color: #ddd;
+      white-space: nowrap;
     }
 
     input[type="range"] {
-      width: 140px;
+      width: 120px;
     }
 
     button {
-      padding: 8px 14px;
       border: none;
       border-radius: 8px;
-      background: #ffffff;
-      color: #111;
-      font-weight: 600;
+      background: #111;
+      color: #fff;
+      padding: 8px 14px;
+      font-weight: 700;
       cursor: pointer;
     }
 
     button:hover {
-      background: #e5e5e5;
+      opacity: 0.9;
+    }
+
+    #status {
+      color: #007a8a;
+      font-size: 13px;
+      min-width: 220px;
+    }
+
+    .tips {
+      padding: 12px 20px 6px;
+      text-align: center;
+      color: #666;
+      font-size: 13px;
+      line-height: 1.6;
     }
 
     #canvas-wrap {
-      margin-top: 20px;
-      margin-bottom: 40px;
-      max-width: 100%;
+      width: 100%;
       overflow: auto;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
     }
 
     canvas {
       display: block;
-      border-radius: 14px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-    }
-
-    .tips {
-      padding: 12px 20px;
-      color: #aaa;
-      font-size: 13px;
-      text-align: center;
-      line-height: 1.6;
-    }
-
-    #status {
-      color: #7dd3fc;
-      font-size: 13px;
+      background: #f8f8f8;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.08);
     }
   </style>
 </head>
 
 <body>
-  <div class="panel">
-    <div class="control">
-      <span>上传图片：</span>
+  <div class="toolbar">
+    <div class="group">
+      <span>上传图片</span>
       <input id="imageInput" type="file" accept="image/*" />
     </div>
 
-    <div class="control">
+    <div class="group">
       <span>速度</span>
-      <input id="velocitySlider" type="range" min="0.5" max="12" step="0.1" value="5" />
-      <span id="velocityValue">5</span>
+      <input id="speedSlider" type="range" min="0.5" max="6" step="0.1" value="2.2" />
+      <span id="speedValue">2.2</span>
     </div>
 
-    <div class="control">
+    <div class="group">
       <span>弯曲度</span>
-      <input id="curlSlider" type="range" min="0" max="4" step="0.1" value="1.5" />
-      <span id="curlValue">1.5</span>
+      <input id="curlSlider" type="range" min="0" max="4" step="0.1" value="1.2" />
+      <span id="curlValue">1.2</span>
     </div>
 
-    <div class="control">
-      <span>粒子间距</span>
-      <input id="gapSlider" type="range" min="3" max="12" step="1" value="5" />
-      <span id="gapValue">5</span>
+    <div class="group">
+      <span>采样间距</span>
+      <input id="gapSlider" type="range" min="2" max="8" step="1" value="3" />
+      <span id="gapValue">3</span>
     </div>
 
-    <button id="rebuildBtn">重新飞入</button>
+    <div class="group">
+      <span>主体阈值</span>
+      <input id="thresholdSlider" type="range" min="4" max="80" step="1" value="18" />
+      <span id="thresholdValue">18</span>
+    </div>
+
+    <div class="group">
+      <label>
+        <input id="colorToggle" type="checkbox" />
+        使用原图颜色
+      </label>
+    </div>
+
+    <div class="group">
+      <label>
+        <input id="ghostToggle" type="checkbox" />
+        显示淡底图
+      </label>
+    </div>
+
+    <button id="restartBtn">重新编织</button>
+    <button id="maskBtn">查看采样区域</button>
 
     <span id="status">等待上传图片</span>
   </div>
 
   <div class="tips">
-    上传图片后，粒子会从随机位置飞向图片对应位置。粒子间距越小，图片越清晰，但性能消耗越大。
+    这版会根据上传图片的暗部、边缘、非白色主体生成线条。  
+    如果图像不明显，把“采样间距”调到 2 或 3，把“主体阈值”调低。
   </div>
 
   <div id="canvas-wrap"></div>
 
   <script>
-    let img;
-    let particles = [];
-
-    let velocity = 5;
-    let curliness = 1.5;
-    let particleGap = 5;
-
-    const maxImgHeight = 760;
-    const maxImgWidth = 1200;
-
+    let img = null;
     let canvas;
+
+    let strengthMap = null;
+    let maskMap = null;
+
+    let seeds = [];
+    let fibers = [];
+
+    let speed = 2.2;
+    let curliness = 1.2;
+    let sampleGap = 3;
+    let threshold = 18;
+
+    let useOriginalColor = false;
+    let showGhost = false;
+
+    let activationIndex = 0;
+    let activationRate = 300;
+
+    const BG = 248;
+    const MAX_W = 1200;
+    const MAX_H = 820;
+    const MAX_FIBERS = 36000;
 
     function setup() {
       canvas = createCanvas(900, 600);
@@ -148,56 +181,67 @@
 
       pixelDensity(1);
       colorMode(RGB, 255);
+      background(BG);
 
-      background(15);
-      drawStartText();
-
+      drawIntro();
       initControls();
+
+      noLoop();
     }
 
     function draw() {
       if (!img) return;
 
-      // 透明背景，保留一点运动拖影
-      background(8, 35);
+      let end = Math.min(activationIndex + activationRate, fibers.length);
 
-      for (let i = 0; i < particles.length; i++) {
-        particles[i].update(velocity, curliness);
-        particles[i].show();
+      for (let i = activationIndex; i < end; i++) {
+        fibers[i].active = true;
       }
 
-      if (particles.length === 0) {
-        drawNoParticleText();
+      activationIndex = end;
+
+      let alive = 0;
+
+      for (let i = 0; i < fibers.length; i++) {
+        let fiber = fibers[i];
+
+        if (!fiber.active || fiber.done) continue;
+
+        fiber.update();
+        fiber.render();
+
+        alive++;
+      }
+
+      document.getElementById("status").textContent =
+        `有效线条 ${fibers.length} / 已激活 ${activationIndex}`;
+
+      if (activationIndex >= fibers.length && alive === 0) {
+        noLoop();
+        document.getElementById("status").textContent =
+          `完成，共 ${fibers.length} 条有效线条`;
       }
     }
 
-    function drawStartText() {
-      background(15);
+    function drawIntro() {
+      background(BG);
 
       noStroke();
-      fill(255);
+      fill(40);
       textAlign(CENTER, CENTER);
-      textSize(26);
-      text("上传一张图片开始粒子绘制", width / 2, height / 2 - 20);
+      textSize(28);
+      text("上传图片，开始真实编织", width / 2, height / 2 - 20);
 
-      fill(160);
+      fill(120);
       textSize(15);
-      text("支持 JPG / PNG / WEBP 等图片格式", width / 2, height / 2 + 24);
-    }
-
-    function drawNoParticleText() {
-      noStroke();
-      fill(255);
-      textAlign(CENTER, CENTER);
-      textSize(20);
-      text("没有生成粒子，可能图片太浅或透明区域太多", width / 2, height / 2);
+      text("线条只会在图片有效区域落笔，不会整张画布乱画", width / 2, height / 2 + 20);
     }
 
     function initControls() {
       const imageInput = document.getElementById("imageInput");
 
-      const velocitySlider = document.getElementById("velocitySlider");
-      const velocityValue = document.getElementById("velocityValue");
+      const speedSlider = document.getElementById("speedSlider");
+      const speedValue = document.getElementById("speedValue");
 
       const curlSlider = document.getElementById("curlSlider");
       const curlValue = document.getElementById("curlValue");
@@ -205,8 +249,14 @@
       const gapSlider = document.getElementById("gapSlider");
       const gapValue = document.getElementById("gapValue");
 
-      const rebuildBtn = document.getElementById("rebuildBtn");
-      const status = document.getElementById("status");
+      const thresholdSlider = document.getElementById("thresholdSlider");
+      const thresholdValue = document.getElementById("thresholdValue");
+
+      const colorToggle = document.getElementById("colorToggle");
+      const ghostToggle = document.getElementById("ghostToggle");
+
+      const restartBtn = document.getElementById("restartBtn");
+      const maskBtn = document.getElementById("maskBtn");
 
       imageInput.addEventListener("change", function (event) {
         const file = event.target.files[0];
@@ -218,24 +268,25 @@
           return;
         }
 
-        status.textContent = "图片读取中...";
+        document.getElementById("status").textContent = "图片读取中...";
 
         const reader = new FileReader();
 
         reader.onload = function (e) {
-          loadImage(e.target.result, function (loadedImg) {
-            img = loadedImg;
+          loadImage(e.target.result, function (loadedImage) {
+            img = loadedImage;
+
             prepareImage();
-            createParticlesFromImage();
+            rebuildAll();
           });
         };
 
         reader.readAsDataURL(file);
       });
 
-      velocitySlider.addEventListener("input", function () {
-        velocity = Number(this.value);
-        velocityValue.textContent = velocity.toFixed(1);
+      speedSlider.addEventListener("input", function () {
+        speed = Number(this.value);
+        speedValue.textContent = speed.toFixed(1);
       });
 
       curlSlider.addEventListener("input", function () {
@@ -244,138 +295,450 @@
       });
 
       gapSlider.addEventListener("input", function () {
-        particleGap = Number(this.value);
-        gapValue.textContent = particleGap;
+        sampleGap = Number(this.value);
+        gapValue.textContent = sampleGap;
 
+        if (img) rebuildAll();
+      });
+
+      thresholdSlider.addEventListener("input", function () {
+        threshold = Number(this.value);
+        thresholdValue.textContent = threshold;
+
+        if (img) rebuildAll();
+      });
+
+      colorToggle.addEventListener("change", function () {
+        useOriginalColor = this.checked;
+
+        if (img) rebuildAll();
+      });
+
+      ghostToggle.addEventListener("change", function () {
+        showGhost = this.checked;
+
+        if (img) restartWeave();
+      });
+
+      restartBtn.addEventListener("click", function () {
         if (img) {
-          createParticlesFromImage();
+          buildFibers();
+          restartWeave();
         }
       });
 
-      rebuildBtn.addEventListener("click", function () {
-        if (img) {
-          resetParticlesPosition();
-        }
+      maskBtn.addEventListener("click", function () {
+        if (img) drawMaskPreview();
       });
     }
 
     function prepareImage() {
-      const scaleW = maxImgWidth / img.width;
-      const scaleH = maxImgHeight / img.height;
-      const scale = Math.min(scaleW, scaleH, 1);
+      const scale = Math.min(
+        MAX_W / img.width,
+        MAX_H / img.height,
+        1
+      );
 
-      const newWidth = Math.floor(img.width * scale);
-      const newHeight = Math.floor(img.height * scale);
+      const newW = Math.floor(img.width * scale);
+      const newH = Math.floor(img.height * scale);
 
-      img.resize(newWidth, newHeight);
-
+      img.resize(newW, newH);
       resizeCanvas(img.width, img.height);
-      background(8);
 
       img.loadPixels();
+      background(BG);
     }
 
-    function createParticlesFromImage() {
-      particles = [];
+    function rebuildAll() {
+      buildImageMaps();
+      buildSeeds();
+      buildFibers();
+      restartWeave();
+    }
 
-      if (!img) return;
-
+    function buildImageMaps() {
       img.loadPixels();
 
-      for (let y = 0; y < img.height; y += particleGap) {
-        for (let x = 0; x < img.width; x += particleGap) {
-          const index = 4 * (x + y * img.width);
+      const w = img.width;
+      const h = img.height;
 
-          const r = img.pixels[index];
-          const g = img.pixels[index + 1];
-          const b = img.pixels[index + 2];
-          const a = img.pixels[index + 3];
+      strengthMap = new Uint8Array(w * h);
+      maskMap = new Uint8Array(w * h);
 
-          // 只跳过透明区域，不跳过白色区域
-          if (a < 20) continue;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const p = x + y * w;
+          const idx = 4 * p;
 
-          const particleColor = color(r, g, b, 235);
+          const r = img.pixels[idx];
+          const g = img.pixels[idx + 1];
+          const b = img.pixels[idx + 2];
+          const a = img.pixels[idx + 3];
 
-          particles.push(new Particle(x, y, particleColor));
+          if (a < 10) {
+            strengthMap[p] = 0;
+            maskMap[p] = 0;
+            continue;
+          }
+
+          const br = getBrightnessFromRGB(r, g, b);
+          const whiteDistance = getWhiteDistance(r, g, b);
+          const sat = getSaturationLike(r, g, b);
+
+          const brRight = getBrightnessAt(Math.min(x + 1, w - 1), y);
+          const brDown = getBrightnessAt(x, Math.min(y + 1, h - 1));
+
+          const edge = Math.abs(br - brRight) + Math.abs(br - brDown);
+
+          const darkness = 255 - br;
+
+          // 重点：
+          // 这里综合判断图片有效区域：
+          // 1. 暗部
+          // 2. 边缘
+          // 3. 与白色背景的差异
+          // 4. 彩色饱和度
+          const strength = constrain(
+            Math.max(
+              darkness,
+              edge * 4.5,
+              whiteDistance * 0.9,
+              sat * 0.55
+            ),
+            0,
+            255
+          );
+
+          strengthMap[p] = strength;
+
+          if (strength >= threshold) {
+            maskMap[p] = 1;
+          } else {
+            maskMap[p] = 0;
+          }
+        }
+      }
+    }
+
+    function buildSeeds() {
+      seeds = [];
+
+      const w = img.width;
+      const h = img.height;
+
+      for (let x = 0; x < w; x += sampleGap) {
+        for (let y = 0; y < h; y += sampleGap) {
+          const p = x + y * w;
+          const strength = strengthMap[p];
+
+          if (strength < threshold) continue;
+
+          const keepChance = map(
+            strength,
+            threshold,
+            255,
+            0.22,
+            1.0
+          );
+
+          if (random() > keepChance) continue;
+
+          const seed = {
+            x: x + random(-sampleGap * 0.4, sampleGap * 0.4),
+            y: y + random(-sampleGap * 0.4, sampleGap * 0.4),
+            strength: strength
+          };
+
+          seeds.push(seed);
+
+          // 深色区域增加一条额外线，提高图像还原度
+          if (strength > 160 && random() < 0.45) {
+            seeds.push({
+              x: x + random(-sampleGap, sampleGap),
+              y: y + random(-sampleGap, sampleGap),
+              strength: strength
+            });
+          }
         }
       }
 
-      const status = document.getElementById("status");
-      status.textContent = "粒子数量：" + particles.length;
+      if (seeds.length > MAX_FIBERS) {
+        seeds = shuffle(seeds).slice(0, MAX_FIBERS);
+      }
 
-      console.log("当前粒子数量：", particles.length);
+      // 按 x 排序，保证从左往右慢慢生成
+      seeds.sort(function (a, b) {
+        return a.x - b.x;
+      });
+
+      document.getElementById("status").textContent =
+        `采样完成，有效种子 ${seeds.length}`;
     }
 
-    function resetParticlesPosition() {
-      for (let i = 0; i < particles.length; i++) {
-        particles[i].pos = createVector(random(width), random(height));
-        particles[i].vel = p5.Vector.random2D().mult(random(1, 5));
+    function buildFibers() {
+      fibers = [];
+
+      for (let i = 0; i < seeds.length; i++) {
+        fibers.push(new Fiber(seeds[i]));
       }
     }
 
-    class Particle {
-      constructor(targetX, targetY, particleColor) {
-        this.target = createVector(targetX, targetY);
+    function restartWeave() {
+      background(BG);
 
+      if (showGhost) {
+        push();
+        tint(255, 28);
+        image(img, 0, 0);
+        pop();
+      }
+
+      activationIndex = 0;
+
+      for (let i = 0; i < fibers.length; i++) {
+        fibers[i].reset();
+      }
+
+      document.getElementById("status").textContent =
+        `准备完成，有效线条 ${fibers.length}`;
+
+      loop();
+    }
+
+    function drawMaskPreview() {
+      if (!img || !maskMap) return;
+
+      background(BG);
+      loadPixels();
+
+      const w = img.width;
+      const h = img.height;
+
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const p = x + y * w;
+
+          if (maskMap[p] === 1) {
+            const s = strengthMap[p];
+            const idx = 4 * p;
+
+            pixels[idx] = 18;
+            pixels[idx + 1] = 130;
+            pixels[idx + 2] = 145;
+            pixels[idx + 3] = map(s, threshold, 255, 70, 255);
+          }
+        }
+      }
+
+      updatePixels();
+
+      document.getElementById("status").textContent =
+        `采样区域预览：青色部分才会参与编织`;
+    }
+
+    function canDrawAt(x, y) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+
+      if (
+        ix < 0 ||
+        iy < 0 ||
+        ix >= img.width ||
+        iy >= img.height
+      ) {
+        return false;
+      }
+
+      const p = ix + iy * img.width;
+
+      return maskMap[p] === 1;
+    }
+
+    function getStrengthAt(x, y) {
+      const ix = Math.floor(x);
+      const iy = Math.floor(y);
+
+      if (
+        ix < 0 ||
+        iy < 0 ||
+        ix >= img.width ||
+        iy >= img.height
+      ) {
+        return 0;
+      }
+
+      return strengthMap[ix + iy * img.width];
+    }
+
+    function getColorAt(x, y, alphaScale = 1) {
+      const ix = constrain(Math.floor(x), 0, img.width - 1);
+      const iy = constrain(Math.floor(y), 0, img.height - 1);
+
+      const p = ix + iy * img.width;
+      const idx = 4 * p;
+
+      const strength = strengthMap[p];
+
+      const r = img.pixels[idx];
+      const g = img.pixels[idx + 1];
+      const b = img.pixels[idx + 2];
+
+      const alpha = map(strength, threshold, 255, 18, 130) * alphaScale;
+
+      if (useOriginalColor) {
+        return color(r, g, b, alpha);
+      }
+
+      return color(18, 130, 145, alpha);
+    }
+
+    function getBrightnessAt(x, y) {
+      const idx = 4 * (x + y * img.width);
+
+      return getBrightnessFromRGB(
+        img.pixels[idx],
+        img.pixels[idx + 1],
+        img.pixels[idx + 2]
+      );
+    }
+
+    function getBrightnessFromRGB(r, g, b) {
+      return r * 0.299 + g * 0.587 + b * 0.114;
+    }
+
+    function getWhiteDistance(r, g, b) {
+      const dr = 255 - r;
+      const dg = 255 - g;
+      const db = 255 - b;
+
+      return Math.sqrt(dr * dr + dg * dg + db * db) / Math.sqrt(3);
+    }
+
+    function getSaturationLike(r, g, b) {
+      return Math.max(r, g, b) - Math.min(r, g, b);
+    }
+
+    class Fiber {
+      constructor(seed) {
+        this.seed = seed;
+        this.reset();
+      }
+
+      reset() {
+        this.active = false;
+        this.done = false;
+
+        // 不是从画布最左边飞到目标，
+        // 而是从目标左侧附近进入，避免整张画布乱线。
         this.pos = createVector(
-          random(width),
-          random(height)
+          this.seed.x - random(25, 120),
+          this.seed.y + random(-28, 28)
         );
 
-        this.vel = p5.Vector.random2D().mult(random(1, 5));
-        this.acc = createVector(0, 0);
+        this.prev = this.pos.copy();
 
-        this.color = particleColor;
-        this.size = max(2, particleGap * 0.7);
+        this.vel = createVector(
+          random(0.4, 1.2),
+          random(-0.6, 0.6)
+        );
 
-        this.noiseOffset = random(1000);
+        this.seedNoise = random(10000);
+
+        this.life = Math.floor(
+          map(this.seed.strength, threshold, 255, 55, 160)
+        );
+
+        this.maxBlank = 36;
+        this.blankCount = 0;
+
+        this.weight = map(
+          this.seed.strength,
+          threshold,
+          255,
+          0.18,
+          1.05
+        );
       }
 
-      update(speed, curl) {
-        const desired = p5.Vector.sub(this.target, this.pos);
-        const distance = desired.mag();
+      update() {
+        if (this.done) return;
 
-        let currentSpeed = speed;
+        this.prev.x = this.pos.x;
+        this.prev.y = this.pos.y;
 
-        if (distance < 100) {
-          currentSpeed = map(distance, 0, 100, 0.2, speed);
+        const target = createVector(this.seed.x, this.seed.y);
+        const toTarget = p5.Vector.sub(target, this.pos);
+        const distance = toTarget.mag();
+
+        if (distance > 0.001) {
+          toTarget.setMag(0.08 * speed);
         }
 
-        if (distance > 0.1) {
-          desired.setMag(currentSpeed);
-        }
-
-        const steer = p5.Vector.sub(desired, this.vel);
-        steer.limit(0.6);
-
-        const angle = noise(
+        const n = noise(
           this.pos.x * 0.008,
           this.pos.y * 0.008,
-          frameCount * 0.008 + this.noiseOffset
-        ) * TWO_PI * 2;
+          frameCount * 0.006 + this.seedNoise
+        );
 
+        const angle = n * TWO_PI * 4;
         const curlForce = p5.Vector.fromAngle(angle);
-        curlForce.mult(curl * 0.12);
+        curlForce.mult(curliness * 0.18);
 
-        // 到达目标后也保留一点轻微流动，不然看起来像完全不动
-        const floatForce = p5.Vector.random2D();
-        floatForce.mult(0.02);
+        // 轻微向右推进，形成从左往右的编织感
+        const rightForce = createVector(0.035 * speed, 0);
 
-        this.acc.add(steer);
-        this.acc.add(curlForce);
-        this.acc.add(floatForce);
+        // 如果当前位置是图片有效区域，让它多缠绕一下
+        const currentStrength = getStrengthAt(this.pos.x, this.pos.y);
+        const localForce = p5.Vector.random2D();
+        localForce.mult(map(currentStrength, 0, 255, 0.0, 0.08));
 
-        this.vel.add(this.acc);
+        this.vel.add(toTarget);
+        this.vel.add(curlForce);
+        this.vel.add(rightForce);
+        this.vel.add(localForce);
+
         this.vel.limit(speed);
 
         this.pos.add(this.vel);
-        this.acc.mult(0);
+
+        this.life--;
+
+        if (canDrawAt(this.pos.x, this.pos.y)) {
+          this.blankCount = 0;
+        } else {
+          this.blankCount++;
+        }
+
+        if (
+          this.life <= 0 ||
+          this.blankCount > this.maxBlank ||
+          this.pos.x < -180 ||
+          this.pos.x > width + 180 ||
+          this.pos.y < -180 ||
+          this.pos.y > height + 180
+        ) {
+          this.done = true;
+        }
       }
 
-      show() {
-        noStroke();
-        fill(this.color);
-        circle(this.pos.x, this.pos.y, this.size);
+      render() {
+        const mx = (this.prev.x + this.pos.x) * 0.5;
+        const my = (this.prev.y + this.pos.y) * 0.5;
+
+        // 最关键的一句：
+        // 当前线段中点不在图片有效区域，就不画。
+        // 所以最终图像一定被上传图片控制。
+        if (!canDrawAt(mx, my)) {
+          return;
+        }
+
+        const c = getColorAt(mx, my, 1);
+
+        stroke(c);
+        strokeWeight(this.weight);
+        noFill();
+
+        line(this.prev.x, this.prev.y, this.pos.x, this.pos.y);
       }
     }
   </script>
