@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图片粒子绘制演示</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #111;
+      color: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .panel {
+      width: 100%;
+      padding: 16px 20px;
+      background: #1c1c1c;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      border-bottom: 1px solid #333;
+    }
+
+    .control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #ddd;
+    }
+
+    input[type="file"] {
+      color: #ddd;
+    }
+
+    input[type="range"] {
+      width: 140px;
+    }
+
+    button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 8px;
+      background: #ffffff;
+      color: #111;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #e5e5e5;
+    }
+
+    #canvas-wrap {
+      margin-top: 20px;
+      margin-bottom: 40px;
+      max-width: 100%;
+      overflow: auto;
+    }
+
+    canvas {
+      display: block;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    .tips {
+      padding: 12px 20px;
+      color: #aaa;
+      font-size: 13px;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    #status {
+      color: #7dd3fc;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="panel">
+    <div class="control">
+      <span>上传图片：</span>
+      <input id="imageInput" type="file" accept="image/*" />
+    </div>
+
+    <div class="control">
+      <span>速度</span>
+      <input id="velocitySlider" type="range" min="0.5" max="12" step="0.1" value="5" />
+      <span id="velocityValue">5</span>
+    </div>
+
+    <div class="control">
+      <span>弯曲度</span>
+      <input id="curlSlider" type="range" min="0" max="4" step="0.1" value="1.5" />
+      <span id="curlValue">1.5</span>
+    </div>
+
+    <div class="control">
+      <span>粒子间距</span>
+      <input id="gapSlider" type="range" min="3" max="12" step="1" value="5" />
+      <span id="gapValue">5</span>
+    </div>
+
+    <button id="rebuildBtn">重新飞入</button>
+
+    <span id="status">等待上传图片</span>
+  </div>
+
+  <div class="tips">
+    上传图片后，粒子会从随机位置飞向图片对应位置。粒子间距越小，图片越清晰，但性能消耗越大。
+  </div>
+
+  <div id="canvas-wrap"></div>
+
+  <script>
+    let img;
+    let particles = [];
+
+    let velocity = 5;
+    let curliness = 1.5;
+    let particleGap = 5;
+
+    const maxImgHeight = 760;
+    const maxImgWidth = 1200;
+
+    let canvas;
+
+    function setup() {
+      canvas = createCanvas(900, 600);
+      canvas.parent("canvas-wrap");
+
+      pixelDensity(1);
+      colorMode(RGB, 255);
+
+      background(15);
+      drawStartText();
+
+      initControls();
+    }
+
+    function draw() {
+      if (!img) return;
+
+      // 透明背景，保留一点运动拖影
+      background(8, 35);
+
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].update(velocity, curliness);
+        particles[i].show();
+      }
+
+      if (particles.length === 0) {
+        drawNoParticleText();
+      }
+    }
+
+    function drawStartText() {
+      background(15);
+
+      noStroke();
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(26);
+      text("上传一张图片开始粒子绘制", width / 2, height / 2 - 20);
+
+      fill(160);
+      textSize(15);
+      text("支持 JPG / PNG / WEBP 等图片格式", width / 2, height / 2 + 24);
+    }
+
+    function drawNoParticleText() {
+      noStroke();
+      fill(255);
+      textAlign(CENTER, CENTER);
+      textSize(20);
+      text("没有生成粒子，可能图片太浅或透明区域太多", width / 2, height / 2);
+    }
+
+    function initControls() {
+      const imageInput = document.getElementById("imageInput");
+
+      const velocitySlider = document.getElementById("velocitySlider");
+      const velocityValue = document.getElementById("velocityValue");
+
+      const curlSlider = document.getElementById("curlSlider");
+      const curlValue = document.getElementById("curlValue");
+
+      const gapSlider = document.getElementById("gapSlider");
+      const gapValue = document.getElementById("gapValue");
+
+      const rebuildBtn = document.getElementById("rebuildBtn");
+      const status = document.getElementById("status");
+
+      imageInput.addEventListener("change", function (event) {
+        const file = event.target.files[0];
+
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+          alert("请上传图片文件");
+          return;
+        }
+
+        status.textContent = "图片读取中...";
+
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          loadImage(e.target.result, function (loadedImg) {
+            img = loadedImg;
+            prepareImage();
+            createParticlesFromImage();
+          });
+        };
+
+        reader.readAsDataURL(file);
+      });
+
+      velocitySlider.addEventListener("input", function () {
+        velocity = Number(this.value);
+        velocityValue.textContent = velocity.toFixed(1);
+      });
+
+      curlSlider.addEventListener("input", function () {
+        curliness = Number(this.value);
+        curlValue.textContent = curliness.toFixed(1);
+      });
+
+      gapSlider.addEventListener("input", function () {
+        particleGap = Number(this.value);
+        gapValue.textContent = particleGap;
+
+        if (img) {
+          createParticlesFromImage();
+        }
+      });
+
+      rebuildBtn.addEventListener("click", function () {
+        if (img) {
+          resetParticlesPosition();
+        }
+      });
+    }
+
+    function prepareImage() {
+      const scaleW = maxImgWidth / img.width;
+      const scaleH = maxImgHeight / img.height;
+      const scale = Math.min(scaleW, scaleH, 1);
+
+      const newWidth = Math.floor(img.width * scale);
+      const newHeight = Math.floor(img.height * scale);
+
+      img.resize(newWidth, newHeight);
+
+      resizeCanvas(img.width, img.height);
+      background(8);
+
+      img.loadPixels();
+    }
+
+    function createParticlesFromImage() {
+      particles = [];
+
+      if (!img) return;
+
+      img.loadPixels();
+
+      for (let y = 0; y < img.height; y += particleGap) {
+        for (let x = 0; x < img.width; x += particleGap) {
+          const index = 4 * (x + y * img.width);
+
+          const r = img.pixels[index];
+          const g = img.pixels[index + 1];
+          const b = img.pixels[index + 2];
+          const a = img.pixels[index + 3];
+
+          // 只跳过透明区域，不跳过白色区域
+          if (a < 20) continue;
+
+          const particleColor = color(r, g, b, 235);
+
+          particles.push(new Particle(x, y, particleColor));
+        }
+      }
+
+      const status = document.getElementById("status");
+      status.textContent = "粒子数量：" + particles.length;
+
+      console.log("当前粒子数量：", particles.length);
+    }
+
+    function resetParticlesPosition() {
+      for (let i = 0; i < particles.length; i++) {
+        particles[i].pos = createVector(random(width), random(height));
+        particles[i].vel = p5.Vector.random2D().mult(random(1, 5));
+      }
+    }
+
+    class Particle {
+      constructor(targetX, targetY, particleColor) {
+        this.target = createVector(targetX, targetY);
+
+        this.pos = createVector(
+          random(width),
+          random(height)
+        );
+
+        this.vel = p5.Vector.random2D().mult(random(1, 5));
+        this.acc = createVector(0, 0);
+
+        this.color = particleColor;
+        this.size = max(2, particleGap * 0.7);
+
+        this.noiseOffset = random(1000);
+      }
+
+      update(speed, curl) {
+        const desired = p5.Vector.sub(this.target, this.pos);
+        const distance = desired.mag();
+
+        let currentSpeed = speed;
+
+        if (distance < 100) {
+          currentSpeed = map(distance, 0, 100, 0.2, speed);
+        }
+
+        if (distance > 0.1) {
+          desired.setMag(currentSpeed);
+        }
+
+        const steer = p5.Vector.sub(desired, this.vel);
+        steer.limit(0.6);
+
+        const angle = noise(
+          this.pos.x * 0.008,
+          this.pos.y * 0.008,
+          frameCount * 0.008 + this.noiseOffset
+        ) * TWO_PI * 2;
+
+        const curlForce = p5.Vector.fromAngle(angle);
+        curlForce.mult(curl * 0.12);
+
+        // 到达目标后也保留一点轻微流动，不然看起来像完全不动
+        const floatForce = p5.Vector.random2D();
+        floatForce.mult(0.02);
+
+        this.acc.add(steer);
+        this.acc.add(curlForce);
+        this.acc.add(floatForce);
+
+        this.vel.add(this.acc);
+        this.vel.limit(speed);
+
+        this.pos.add(this.vel);
+        this.acc.mult(0);
+      }
+
+      show() {
+        noStroke();
+        fill(this.color);
+        circle(this.pos.x, this.pos.y, this.size);
+      }
+    }
+  </script>
+</body>
+</html>
